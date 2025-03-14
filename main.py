@@ -23,7 +23,7 @@ expected_platforms = {}
 
 # 定義驗證超時檢查函式
 async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIFICATION_TIMEOUT):
-    await asyncio.sleep(timeout)
+    await asyncio.sleep(timeout)  # 等待30秒
     if member_id in verification_channels:
         member = guild.get_member(member_id)
         channel = bot.get_channel(channel_id)
@@ -31,31 +31,26 @@ async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIF
         # 檢查使用者是否已有「喔沒有我只是看看」的身分組
         role = discord.utils.get(guild.roles, name="喔沒有我只是看看")
         if member and role in member.roles:
-            # 已經有身分組則不踢出
             if channel:
                 await channel.delete(reason="用戶已取得身分組，自動刪除驗證頻道")
             verification_channels.pop(member_id, None)
             expected_platforms.pop(member_id, None)
             return
 
-        # 未取得身分組才進行踢出
-        await asyncio.sleep(VERIFICATION_TIMEOUT)
-        if member_id in verification_channels:
-            member = guild.get_member(member_id)
-            channel = bot.get_channel(channel_id)
-            if channel:
-                await channel.send("認證時間已過，您未完成認證，將被移除。")
-                try:
-                    await channel.delete(reason="未完成認證，自動刪除驗證頻道")
-                except Exception as e:
-                    print(f"刪除驗證頻道失敗: {e}")
-            if member:
-                try:
-                    await guild.kick(member, reason="未完成認證")
-                except Exception as e:
-                    print(f"踢出成員失敗: {e}")
-            verification_channels.pop(member_id, None)
-            expected_platforms.pop(member_id, None)
+        # 若沒有身分組則踢出
+        if channel:
+            await channel.send("認證時間已過，您未完成認證，將被移除。")
+            try:
+                await channel.delete(reason="未完成認證，自動刪除驗證頻道")
+            except Exception as e:
+                print(f"刪除驗證頻道失敗: {e}")
+        if member:
+            try:
+                await guild.kick(member, reason="未完成認證")
+            except Exception as e:
+                print(f"踢出成員失敗: {e}")
+        verification_channels.pop(member_id, None)
+        expected_platforms.pop(member_id, None)
             
 # 建立驗證按鈕的 UI
 class VerificationView(discord.ui.View):
