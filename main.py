@@ -6,7 +6,7 @@ import asyncio
 import os
 
 # 驗證超時時間（秒）
-VERIFICATION_TIMEOUT = 30  # 30 秒
+VERIFICATION_TIMEOUT = 300  #5分
 
 # 建立 intents
 intents = discord.Intents.default()
