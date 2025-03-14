@@ -5,8 +5,8 @@ import re
 import asyncio
 import os
 
-# 驗證超時時間（秒） - 這裡設定 30 秒，測試用
-VERIFICATION_TIMEOUT = 30
+# 驗證超時時間（秒）
+VERIFICATION_TIMEOUT = 30  # 30 秒
 
 # 建立 intents
 intents = discord.Intents.default()
@@ -23,8 +23,6 @@ expected_platforms = {}
 # 定義驗證超時檢查函式（只等待一次）
 async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIFICATION_TIMEOUT):
     await asyncio.sleep(timeout)
-    # Debug 輸出檢查超時是否觸發
-    print(f"[DEBUG] check_verification_timeout: member_id={member_id}")
     if member_id in verification_channels:
         member = guild.get_member(member_id)
         channel = bot.get_channel(channel_id)
@@ -41,13 +39,13 @@ async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIF
                 try:
                     await channel.delete(reason="未完成認證，自動刪除驗證頻道")
                 except Exception as e:
-                    print(f"刪除驗證頻道失敗: {e}")
+                    print(f"[DEBUG] 刪除驗證頻道失敗: {e}")
             if member:
                 try:
                     await guild.kick(member, reason="未完成認證")
                     print(f"[DEBUG] Member {member_id} kicked due to timeout.")
                 except Exception as e:
-                    print(f"踢出成員失敗: {e}")
+                    print(f"[DEBUG] 踢出成員失敗: {e}")
             verification_channels.pop(member_id, None)
             expected_platforms.pop(member_id, None)
 
@@ -104,6 +102,10 @@ class VerificationView(discord.ui.View):
 async def on_member_join(member: discord.Member):
     print(f"[DEBUG] on_member_join triggered for {member} ({member.id})")
     guild = member.guild
+    # 檢查是否已建立過驗證頻道
+    if member.id in verification_channels:
+        print(f"[DEBUG] Member {member.id} already has a verification channel. Skipping creation.")
+        return
     # 嘗試取得名稱為「【海關】」的類別（請確保名稱正確）
     category = discord.utils.get(guild.categories, name="【海關】")
     if category is None:
@@ -128,7 +130,6 @@ async def on_member_join(member: discord.Member):
 async def on_message(message):
     if message.author.bot:
         return
-
     if message.author.id in verification_channels and message.channel.id == verification_channels[message.author.id]:
         content = message.content.strip()
         if re.match(r'https?://\S+', content):
@@ -149,7 +150,7 @@ async def on_message(message):
                     await message.channel.delete(reason="已有身分組，自動刪除驗證頻道")
                     print(f"[DEBUG] Channel deleted for {message.author.id} (already verified)")
                 except Exception as e:
-                    print(f"刪除頻道失敗：{e}")
+                    print(f"[DEBUG] 刪除頻道失敗：{e}")
                 verification_channels.pop(message.author.id, None)
                 expected_platforms.pop(message.author.id, None)
                 return
@@ -191,7 +192,7 @@ async def on_message(message):
                                 await message.channel.delete(reason="驗證完成，自動刪除驗證頻道")
                                 print(f"[DEBUG] Verification channel for {message.author.id} deleted after success.")
                             except Exception as e:
-                                print(f"刪除頻道失敗：{e}")
+                                print(f"[DEBUG] 刪除頻道失敗：{e}")
                             verification_channels.pop(message.author.id, None)
                             expected_platforms.pop(message.author.id, None)
                         else:
@@ -210,7 +211,7 @@ async def on_member_remove(member: discord.Member):
                 await channel.delete(reason="用戶已離開伺服器，刪除驗證頻道")
                 print(f"[DEBUG] Verification channel for {member.id} deleted on member remove.")
             except Exception as e:
-                print(f"刪除頻道失敗：{e}")
+                print(f"[DEBUG] 刪除頻道失敗：{e}")
         verification_channels.pop(member.id, None)
         expected_platforms.pop(member.id, None)
 
