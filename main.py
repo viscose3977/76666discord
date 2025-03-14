@@ -7,7 +7,7 @@ import os
 
 
 # 驗證超時時間（秒）
-VERIFICATION_TIMEOUT = 300  # 5 分鐘
+VERIFICATION_TIMEOUT = 30  # 5 分鐘
 
 # 建立 intents
 intents = discord.Intents.default()
