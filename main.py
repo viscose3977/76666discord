@@ -27,21 +27,36 @@ async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIF
     if member_id in verification_channels:
         member = guild.get_member(member_id)
         channel = bot.get_channel(channel_id)
-        if channel:
-            await channel.send("認證時間已過，您未完成認證，將被移除。")
-            try:
-                await channel.delete(reason="未完成認證，自動刪除驗證頻道")
-            except Exception as e:
-                print(f"刪除驗證頻道失敗: {e}")
-        if member:
-            try:
-                await guild.kick(member, reason="未完成認證")
-            except Exception as e:
-                print(f"踢出成員失敗: {e}")
-        # 清除記錄
-        verification_channels.pop(member_id, None)
-        expected_platforms.pop(member_id, None)
 
+        # 檢查使用者是否已有「喔沒有我只是看看」的身分組
+        role = discord.utils.get(guild.roles, name="喔沒有我只是看看")
+        if member and role in member.roles:
+            # 已經有身分組則不踢出
+            if channel:
+                await channel.delete(reason="用戶已取得身分組，自動刪除驗證頻道")
+            verification_channels.pop(member_id, None)
+            expected_platforms.pop(member_id, None)
+            return
+
+        # 未取得身分組才進行踢出
+        await asyncio.sleep(VERIFICATION_TIMEOUT)
+        if member_id in verification_channels:
+            member = guild.get_member(member_id)
+            channel = bot.get_channel(channel_id)
+            if channel:
+                await channel.send("認證時間已過，您未完成認證，將被移除。")
+                try:
+                    await channel.delete(reason="未完成認證，自動刪除驗證頻道")
+                except Exception as e:
+                    print(f"刪除驗證頻道失敗: {e}")
+            if member:
+                try:
+                    await guild.kick(member, reason="未完成認證")
+                except Exception as e:
+                    print(f"踢出成員失敗: {e}")
+            verification_channels.pop(member_id, None)
+            expected_platforms.pop(member_id, None)
+            
 # 建立驗證按鈕的 UI
 class VerificationView(discord.ui.View):
     def __init__(self, member: discord.Member):
@@ -144,14 +159,32 @@ async def on_message(message):
                 "instagram": "https://www.instagram.com/ikkirarara3089/",
                 "threads": "https://www.threads.net/@ikkirarara3089"
             }
+            role = discord.utils.get(message.guild.roles, name="喔沒有我只是看看")
+            if role and role in message.author.roles:
+                await message.channel.send("您已經擁有身分組，無需再次驗證！")
+                try:
+                    await message.channel.delete(reason="已有身分組，自動刪除驗證頻道")
+                except Exception as e:
+                    print(f"刪除頻道失敗：{e}")
+                verification_channels.pop(message.author.id, None)
+                expected_platforms.pop(message.author.id, None)
+                return
+
             if expected in sample_urls and content == sample_urls[expected]:
                 await message.channel.send("請勿使用範例網址進行驗證 \n # 停權！")
                 try:
+                    role = discord.utils.get(message.guild.roles, name="喔沒有我只是看看")
+                    if role in message.author.roles:
+                        await message.channel.send("但您已有身分組，此次不會停權。")
+                        await message.channel.delete(reason="已有身分組，自動刪除驗證頻道")
+                        verification_channels.pop(message.author.id, None)
+                        expected_platforms.pop(message.author.id, None)
+                        return
                     await message.guild.ban(message.author, reason="使用範例網址進行驗證")
                 except Exception as e:
                     await message.channel.send(f"停權用戶時發生錯誤：{e}")
                 return
-
+                
             # 檢查 URL 是否包含對應網域
             if expected == "youtube" and "youtube.com" not in content:
                 await message.channel.send("你選擇的是 YouTube 驗證，但貼上的網址不是 YouTube 喔。")
