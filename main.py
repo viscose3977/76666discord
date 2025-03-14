@@ -27,25 +27,25 @@ async def check_verification_timeout(member_id, guild, channel_id, timeout=VERIF
         member = guild.get_member(member_id)
         channel = bot.get_channel(channel_id)
         role = discord.utils.get(guild.roles, name="喔沒有我只是看看")
+        # 如果該成員已有身分組，則只刪除頻道
         if member and role in member.roles:
             if channel:
                 await channel.delete(reason="用戶已取得身分組，自動刪除驗證頻道")
             verification_channels.pop(member_id, None)
             expected_platforms.pop(member_id, None)
-            print(f"[DEBUG] Member {member_id} already verified. Channel deleted.")
         else:
+            # 未完成驗證，則發送提示、刪除頻道並踢出該成員
             if channel:
                 await channel.send("認證時間已過，您未完成認證，將被移除。")
                 try:
                     await channel.delete(reason="未完成認證，自動刪除驗證頻道")
                 except Exception as e:
-                    print(f"[DEBUG] 刪除驗證頻道失敗: {e}")
+                    print(f"刪除驗證頻道失敗: {e}")
             if member:
                 try:
                     await guild.kick(member, reason="未完成認證")
-                    print(f"[DEBUG] Member {member_id} kicked due to timeout.")
                 except Exception as e:
-                    print(f"[DEBUG] 踢出成員失敗: {e}")
+                    print(f"踢出成員失敗: {e}")
             verification_channels.pop(member_id, None)
             expected_platforms.pop(member_id, None)
 
@@ -65,7 +65,8 @@ class VerificationView(discord.ui.View):
             "請直接貼上您的 Threads 帳號網址於此頻道進行驗證。\n"
             "如 https://www.threads.net/@ikkirarara3089\n"
             "請勿使用範例網址進行驗證，因為76會直接停權你。\n"
-            "若貼上正確網址卻顯示錯誤訊息，請嘗試反覆傳送。",
+            "若貼上正確網址，卻顯示錯誤訊息\n"
+            "# 請嘗試反覆傳送。",
             ephemeral=True
         )
 
@@ -79,7 +80,8 @@ class VerificationView(discord.ui.View):
             "請直接貼上您的 Instagram 帳號網址於此頻道進行驗證。\n"
             "如 https://www.instagram.com/ikkirarara3089\n"
             "請勿使用範例網址進行驗證，因為76會直接停權你。\n"
-            "若貼上正確網址卻顯示錯誤訊息，請嘗試反覆傳送。",
+            "若貼上正確網址，卻顯示錯誤訊息\n"
+            "# 請嘗試反覆傳送。",
             ephemeral=True
         )
 
@@ -93,31 +95,25 @@ class VerificationView(discord.ui.View):
             "請直接貼上您的 YouTube 帳號網址於此頻道進行驗證。\n"
             "如 https://www.youtube.com/@Ikkira一綺羅\n"
             "請勿使用範例網址進行驗證，因為76會直接停權你。\n"
-            "若貼上正確網址卻顯示錯誤訊息，請嘗試反覆傳送。",
+            "若貼上正確網址，卻顯示錯誤訊息\n"
+            "# 請嘗試反覆傳送。",
             ephemeral=True
         )
 
 # 當新成員加入時，在【海關】類別下建立驗證頻道
 @bot.event
 async def on_member_join(member: discord.Member):
-    print(f"[DEBUG] on_member_join triggered for {member} ({member.id})")
     guild = member.guild
-    # 檢查是否已建立過驗證頻道
-    if member.id in verification_channels:
-        print(f"[DEBUG] Member {member.id} already has a verification channel. Skipping creation.")
-        return
-    # 嘗試取得名稱為「【海關】」的類別（請確保名稱正確）
+    # 嘗試取得名稱為「【海關】」的類別
     category = discord.utils.get(guild.categories, name="【海關】")
     if category is None:
         category = await guild.create_category("【海關】")
-        print(f"[DEBUG] Category '【海關】' created.")
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=False),
         member: discord.PermissionOverwrite(read_messages=True)
     }
     channel_name = f"驗證-{member.display_name}"
     verification_channel = await guild.create_text_channel(channel_name, overwrites=overwrites, category=category)
-    print(f"[DEBUG] Verification channel created: {verification_channel.name} (ID: {verification_channel.id})")
     verification_channels[member.id] = verification_channel.id
     await verification_channel.send(
         "歡迎降落，請在五分鐘內完成身分驗證！\n有任何狀況或疑問請私訊管理員！"
@@ -148,9 +144,8 @@ async def on_message(message):
                 await message.channel.send("您已經擁有身分組，無需再次驗證！")
                 try:
                     await message.channel.delete(reason="已有身分組，自動刪除驗證頻道")
-                    print(f"[DEBUG] Channel deleted for {message.author.id} (already verified)")
                 except Exception as e:
-                    print(f"[DEBUG] 刪除頻道失敗：{e}")
+                    print(f"刪除頻道失敗：{e}")
                 verification_channels.pop(message.author.id, None)
                 expected_platforms.pop(message.author.id, None)
                 return
@@ -165,7 +160,6 @@ async def on_message(message):
                         expected_platforms.pop(message.author.id, None)
                         return
                     await message.guild.ban(message.author, reason="使用範例網址進行驗證")
-                    print(f"[DEBUG] Member {message.author.id} banned for using sample URL.")
                 except Exception as e:
                     await message.channel.send(f"停權用戶時發生錯誤：{e}")
                 return
@@ -188,11 +182,7 @@ async def on_message(message):
                             if role:
                                 await message.author.add_roles(role)
                             await message.channel.send("驗證成功，歡迎加入！")
-                            try:
-                                await message.channel.delete(reason="驗證完成，自動刪除驗證頻道")
-                                print(f"[DEBUG] Verification channel for {message.author.id} deleted after success.")
-                            except Exception as e:
-                                print(f"[DEBUG] 刪除頻道失敗：{e}")
+                            await message.channel.delete(reason="驗證完成，自動刪除驗證頻道")
                             verification_channels.pop(message.author.id, None)
                             expected_platforms.pop(message.author.id, None)
                         else:
@@ -207,11 +197,7 @@ async def on_member_remove(member: discord.Member):
         channel_id = verification_channels[member.id]
         channel = bot.get_channel(channel_id)
         if channel:
-            try:
-                await channel.delete(reason="用戶已離開伺服器，刪除驗證頻道")
-                print(f"[DEBUG] Verification channel for {member.id} deleted on member remove.")
-            except Exception as e:
-                print(f"[DEBUG] 刪除頻道失敗：{e}")
+            await channel.delete(reason="用戶已離開伺服器，刪除驗證頻道")
         verification_channels.pop(member.id, None)
         expected_platforms.pop(member.id, None)
 
